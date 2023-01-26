@@ -1,0 +1,214 @@
+@name EGPlib
+@inputs
+@outputs 
+@persist Screen:wirelink Objs:table DTab:array FC CENTER:vector2 TxtSize_ Font_:string
+@trigger 
+
+if (first() || duped()) {
+    #[DEBUG MESSAGE FUNCTIONS]#
+    function void slibDbg(Msg:string) {
+        print(format("[EGPlib] %s",
+            Msg
+        ))
+    }
+    function void slibDbg(Ext:string, Msg:string) {
+        print(format("[EGPlib][%s] %s",
+            Ext, Msg
+        ))
+    }
+    slibDbg("Initializing")
+
+    # canvas center
+    CENTER = vec2(256,256)
+    # Set frame counter to 0
+    FC = 0
+    
+    #[SCREEN INIT]#
+    function void guiScreen(Screen_:wirelink) {
+        Screen = Screen_
+        slibDbg("Screen: " + Screen_:entity():id())
+    }
+
+    #[INDEX MANAGER]#
+    function number guiByName(Name:string) {
+        local Index = -1
+        if (Objs[Name,number]) {
+            Index = Objs[Name,number]
+        } else {
+            local Max = egpMaxObjects()
+            local IObjs = invert(Objs)
+            
+            # no object so far
+            if (IObjs:count() == 0) {
+                Index = 1
+                Objs[Name,number] = Index
+            } else {
+                for (I = 1, Max, 1) {
+                    if (IObjs[I:toString(),string] == "") {
+                        Index = I
+                        Objs[Name,number] = I
+                        break
+                    }
+                }
+            }
+        }
+        return Index
+    }
+ 
+    #[SCREENLIB CLEAR]#
+    function void guiClear() {
+        if (egpQueue() > 0) { egpClearQueue() }
+        Screen:egpClear()
+        Screen:egpDrawTopLeft(1)
+        
+        Objs:clear() # Clear the object table and
+        DTab:clear() # the drawing function table
+    }
+
+    #[OBJECT REMOVAL]#
+    function void guiRemove(Name:string) {
+        Screen:egpRemove(guiByName(Name))
+        Objs:remove(Name)
+    }
+    function void guiRemove(Index:number) {
+        local IObjs = invert(Objs)
+        
+        # remove from screen and index table
+        Screen:egpRemove(Index)
+        Objs:remove(IObjs[Index:toString(),string])
+    }
+
+    #[DISTANCE CALCULATING]#
+    function vector2 guiVec2Obj(Index:number, Pos:vector2) {
+        local D = Screen:egpPos(Index) - Pos
+        
+        return D
+    }
+    function vector2 guiVec2Obj(Name:string, Pos:vector2)
+    {
+        local I = Objs[Name,number]
+        
+        if (I) {
+            return guiVec2Obj(I, Pos)
+        } else {
+            return vec2(-1)
+        }
+    }
+
+    #[MULTI OBJECT FINDER]#
+    function array guiGetMultiObjs(Key:string) {
+        local RObjs = array()
+        local RKeys = Objs:keys()
+        
+        for (I = 1, RKeys:count(), 1) {
+            KStr = RKeys[I,string]
+            if (KStr:findRE(Key)) {
+                RObjs:pushNumber(Objs[KStr,number])
+            }
+        }
+        
+        return RObjs
+    }
+    
+    #[LOOP CONTROL & MANAGEMENT]#
+    function void guiCtrlLoop(On:number) {
+        if (On) {
+            Screen:egpRunOnQueue(1)
+            slibDbg("Drawloop started")
+            timer("drawloop", 1)
+        } else {
+            Screen:egpRunOnQueue(0)
+            slibDbg("Drawloop stopped")
+            stoptimer("drawloop")
+        }
+    }
+    function void guiHandle() {
+        if (clk("drawloop")) {
+            local DTabC = DTab:count()
+            if (DTabC != 0 && egpCanSendUmsg()) {
+                local Draw = DTab:removeString(1)
+                if (Draw != "") {
+                    # execute draw function
+                    local NxtFrm = Draw()[number]
+                    
+                    if (NxtFrm > 0) { # function returned > 0 so it wants to be reinserted
+                        if (NxtFrm <= DTabC) {
+                            if (DTab[NxtFrm,string] == "") {
+                                DTab[NxtFrm,string] = Draw
+                            } else {
+                                DTab:pushString(Draw)
+                            }
+                        } else {
+                            for (I = 1, NxtFrm-1, 1) {
+                                DTab[DTabC+I,string] = ""
+                            }
+                            DTab:pushString(Draw)
+                        }
+                    }
+                }
+                
+                FC = (FC <= 65536) ? FC + 1 : 0 # frame counting
+            }
+            timer("drawloop", 
+                round(1000/egpMaxUmsgPerSecond())
+            )
+        } elseif (egpQueueClk()) {
+            if (!egpQueue()) {
+                egpClearQueue()
+            }
+        }
+    }
+}
+
+#[TEXTBOX EXTENSION]#
+if (first() || duped()) {
+    slibDbg("Textbox", "Initalizing")
+    
+    TxtSize_ = 12
+    Font_ = "courier new"
+
+    #[TEXTBOX CREATORS]#
+    function number guiCreateTbox(Name:string, Pos:vector2, Size:vector2,  Color:vector4, OutColor:vector4) {
+        local Tbox = format("tbox_%s", Name)
+        local TboxRoot = guiByName(format("%s_bgnd", Tbox))
+        local TboxTxt = guiByName(format("%s_txt", Tbox))
+        local TboxOutl = 0 # placeholder for outline
+        local TboxOutlS = 2 # size of the outline
+        local PSize = -Size/2
+        
+        Screen:egpBox(TboxRoot, Pos, Size)
+        Screen:egpColor(TboxRoot, Color)
+        
+        # outline?
+        if (OutColor != vec4(-1)) {
+            TboxOutl = guiByName(format("%s_outl", Tbox))
+            Screen:egpBoxOutline(TboxOutl, PSize, Size)
+            Screen:egpColor(TboxOutl, OutColor)
+            Screen:egpSize(TboxOutl, TboxOutlS)
+            Screen:egpParent(TboxOutl, TboxRoot)
+        }
+        
+        Screen:egpTextLayout(TboxTxt, "", 
+            PSize+vec2(TboxOutlS+2),
+            Size-vec2(TboxOutlS+2)
+        )
+        Screen:egpColor(TboxTxt, vec(255))
+        Screen:egpFont(TboxTxt, Font_)
+        Screen:egpAlign(TboxTxt, 1, 1)
+        Screen:egpSize(TboxTxt, TxtSize_)
+        Screen:egpParent(TboxTxt, TboxRoot)
+        
+        return TboxRoot
+    }
+    function number guiCreateTbox(Name:string, Pos:vector2, Size:vector2, Color:vector, OutColor:vector) {
+        return guiCreateTbox(Name, Pos, Size, vec4(Color,255), vec4(OutColor,255))
+    }
+    function number guiCreateTbox(Name:string, Pos:vector2, Size:vector2, Color:vector) {
+        return guiCreateTbox(Name, Pos, Size, vec4(Color,255), vec4(-1))
+    }
+
+    #[TEXT ELEM GETTER]#
+    function number guiGetTboxTxt(Name:string) {
+        return guiByName(format("tbox_%s_txt", Name))
+    }
+}

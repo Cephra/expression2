@@ -1,0 +1,62 @@
+@name szDr0n3_autonomy
+@inputs 
+@outputs 
+@persist 
+@trigger 
+
+Glob = gTable(entity():id():toString())
+DrnTurret = Glob["DrnTurret",wirelink]
+DrnLamp = Glob["DrnLamp",wirelink]
+DrnCam = Glob["DrnCam",wirelink]
+
+function handleChase() {
+    local Vars = Glob["mChase",array]
+    
+    local TEnt = Vars[1,entity]
+    local TPos = TEnt:pos()+vec(0,0,100)
+    local EPos = Glob["EPos",vector]
+    
+    local AimPos = (TEnt == owner() & !Vars[3,number]) ? owner():aimPos() : TEnt:shootPos()-vec(0,0,30)
+    
+    # cam?
+    DrnCam["Activated",number] = Vars[2,number]
+    DrnLamp["On",number] = owner():isFlashlightOn()
+    
+    # target ranging    
+    rangerFilter(entity())
+    local Trace = rangerOffset(256,EPos,-entity():up())
+    local DirTrace = rangerOffset(EPos,TPos)
+    if (Trace:hitWorld()) {
+        DrnTurret["Fire",number] = 0
+    } elseif (Trace:entity()) {
+        Ent = Trace:entity()
+        if (Ent == TEnt) {
+            DrnTurret["Fire",number] = (Vars[3,number] && TEnt:isAlive()) ? 1 : 0
+        } else {
+            DrnTurret["Fire",number] = 0
+        }
+    } else {
+        DrnTurret["Fire",number] = 0
+    }
+    if (DirTrace:hitWorld() | 
+        DirTrace:entity():type() == "prop_physics") {
+        entity():propNotSolid(1)
+    } else {
+        entity():propNotSolid(0)
+    }
+    
+    # Set desired angles
+    local Ang = (AimPos-EPos):toAngle()
+    Glob["TAng",angle] = Ang:rotateAroundAxis(Ang:right(),90)
+    
+    local Dist = EPos:distance(TPos)
+    if (Dist < 128) {
+        
+    } elseif (128 < Dist < 2048) {
+        Frac = Dist/8
+        Vec = (TPos - EPos):normalized()*Frac
+        Glob["TPos",vector] = EPos+Vec
+    } else {
+        Glob["TPos",vector] = TPos
+    }
+}

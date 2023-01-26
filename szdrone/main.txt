@@ -1,0 +1,304 @@
+@name szDr0n3
+@inputs DrnMarker:wirelink DrnCam:wirelink DrnTurret:wirelink DrnLamp:wirelink 
+@inputs DrnPod:wirelink DrnPodCon:wirelink DrnHUD:wirelink
+@outputs 
+@persist Glob:gtable
+@persist Initd Lnks:table VGoto:vector
+@trigger 
+@model models/maxofs2d/hover_classic.mdl
+
+if (duped()) { reset() }
+
+if (first() | duped()) {
+    runOnLast(1)
+    #[PREPARE GLOBALIZATION]#
+    Glob = gTable(entity():id():toString())
+    Glob:clear()
+    
+    #[GLOBALIZE VARIABLES]#
+    Glob["EPos",vector] = entity():massCenter()
+    Glob["TPos",vector] = vec()
+    Glob["TAng",angle] = ang()
+    Glob["Mode",number] = 1
+     
+    #[GLOBALIZE WIRELINKS]#
+    Glob["DrnMarker",wirelink] = DrnMarker
+    Glob["DrnCam",wirelink] = DrnCam
+    Glob["DrnTurret",wirelink] = DrnTurret
+    Glob["DrnLamp",wirelink] = DrnLamp
+    Glob["DrnPod",wirelink] = DrnPod
+    Glob["DrnPodCon",wirelink] = DrnPodCon
+    Glob["DrnHUD",wirelink] = DrnHUD
+    
+    #[HELPER MODULE]#
+    #include "szdrone/base"
+    
+    #[MODE MODULES]#
+    #include "szdrone/autonomy"
+    #include "szdrone/vehicle"
+    
+    #[HUD MODULE]#
+    #include "szdrone/hud"
+    
+    #[PHYSICS SIMULATION]#    
+    function void linProc() {
+        # Variables
+        local EPos = entity():massCenter()
+        local TPos = Glob["TPos",vector]
+
+        # Calculate the force
+        VGoto = TPos - EPos
+        local Vec = (VGoto + $VGoto*5)*entity():mass()*5
+        
+        # Velocity Damp
+        local Vec = Vec+entity():vel()*entity():mass()*-1
+        
+        # Apply the force now!
+        applyForce(Vec)
+    }
+    function void angProc() {
+        # Do the quaternion magic
+        local TAng = Glob["TAng",angle]
+        local CQuat = quat(entity())
+        local TQuat = quat(TAng)
+        local Q = TQuat/CQuat
+        local Torq = entity():toLocal(rotationVector(Q)+entity():pos())
+        
+        # Apply the torque
+        local M = 128
+        local N = 12
+        applyTorque((Torq*M - entity():angVelVector()*N)*entity():inertia())
+    }
+    
+    #[BODY INITIALIZING]#
+    function initDrone() {
+        local EPos = Glob["EPos",vector]
+        setupWirelinks()
+        
+        # Turret setup
+        DrnTurret["Fire",number] = 0
+        local DrnTurretEnt = DrnTurret:entity()
+        DrnTurretEnt:setPos(EPos+vec(-8,0,2))
+        DrnTurretEnt:setAng(ang(90,0,0))
+        
+        # Cam setup
+        DrnCam["Activated",number] = 0
+        DrnCam["Angle",angle] = vec(0,0,-1):toAngle()
+        DrnCam["Direction",vector] = vec(0,0,-1)
+        DrnCam["Position",vector] = EPos+vec(0,0,-10)
+        DrnCam["Parent",entity] = noentity()
+        
+        # Lamp setup
+        DrnLamp["On",number] = 0
+        DrnLamp["FOV",number] = 120
+        DrnLamp["Distance",number] = 1024
+        DrnLamp["Brightness",number] = 8
+        local DrnLampEnt = DrnLamp:entity()
+        DrnLampEnt:setPos(EPos+vec(0,0,-4))
+        DrnLampEnt:setAng(ang(90,0,0))
+        
+        # Chair Setup
+        local DrnPodEnt = DrnPod:entity()
+        DrnPodEnt:setPos(EPos+vec(0,0,-14))
+        DrnPodEnt:setAng(ang(0,0,0))
+        
+        # Podcon setup
+        DrnPodCon["Hide Player",number] = 1
+        DrnPodCon["Terminate",number] = 1
+    }
+    function initMdl() {
+        # Set the model
+        setupModel(DrnMarker["Entities",array])
+        
+        # Add the trail
+        entity():removeTrails()
+        entity():setTrails(
+            28,
+            0,
+            0.6,
+            "trails/plasma",
+            vec(0,127,255),
+            255
+        )
+    }
+    
+    #[DRONE HELPER]#
+    function rstdrone() {
+        # wirelink reset
+        DrnLamp["On",number] = 0
+        DrnCam["Activated",number] = 0
+        DrnTurret["Fire",number] = 0
+        
+        # pod controller reset
+        DrnPodCon["Disable",number] = 1
+        DrnPodCon["Lock",number] = 1
+        
+        # solidity reset
+        entity():propNotSolid(0)
+        DrnPod:entity():propNotSolid(1)
+    }
+    function rstmodes() {
+        # idle settings
+        Glob["mIdle",array] = array(
+            0,          #1 Lamp?
+            0           #1 Cam?
+        )
+        
+        # chase settings
+        Glob["mChase",array] = array(
+            owner(),    #1 Chase?
+            0,          #2 Cam?
+            0           #3 Attack?
+        )
+        # ride settings
+        Glob["mRide",array] = array(
+            0,          #1 Stage?
+            0,          #2 Lamp?
+            0           #3 TargEntId
+        )
+    }
+    function mode(Md) {
+        rstmodes()
+        rstdrone()
+        Glob["Mode",number] = Md
+    }
+    
+    #[DRONE WORKER]#
+    function modeProc() {
+        Glob["EPos",vector] = entity():massCenter()
+        local MvMd = Glob["Mode",number]
+        if (entity():isPlayerHolding()) {
+            Glob["TPos",vector] = Glob["EPos",vector]
+            Glob["TAng",angle] = entity():angles():setRoll(0)
+        } elseif (MvMd == 0) {
+            Vars = Glob["mIdle",array]
+            
+            # Set the accessoires
+            DrnLamp["On",number] = Vars[1,number]
+            DrnCam["Activated",number] = Vars[2,number]
+        } elseif (MvMd == 1) {
+            handleChase()
+        } elseif (MvMd == 2) {
+            handleVehicle()
+        }
+        # Sound pitch
+        local VelPerc = round((clamp(entity():vel():length(),0,455)/400)*100)
+        soundPitch(1,100+VelPerc)
+    }
+}
+
+if (first() | dupefinished()) {
+    runOnChat(1)
+    
+    initDrone()
+    initMdl()
+}
+
+if (last() | removing()) {
+    Glob:clear()
+}
+
+if (chatClk(owner()) & !Initd) {
+    if (lastSaid():lower():trim() == "drone.init") {
+        # finalizing
+        finalizeWirelinks()
+        finalizeModel(DrnMarker["Entities",array])
+        
+        # parent the camera
+        DrnCam["Parent",entity] = entity()
+        DrnLamp:entity():setColor(vec4(1))
+        
+        # initial mode 1
+        ("mode")(1)
+        
+        # initHUD
+        initHUD()
+                
+        # Play movement sound
+        entity():soundPlay(1,0,"npc/scanner/combat_scan_loop4.wav")
+        soundVolume(1,0.1)
+        
+        # Run on tick and unfreeze
+        runOnTick(1)
+        entity():propFreeze(0)
+        
+        # Init done
+        Initd = 1
+        hideChat(1)
+        print("Drone activated")
+    }
+} elseif (chatClk(owner()) & Initd) {
+    local Str = lastSaid():explode(" ")
+    if (Str[1,string]:lower() == "drone?") {
+        # args
+        local CmdL1 = Str[2,string]
+        local CmdL2 = Str[3,string]
+        
+        # hide msg
+        hideChat(1)
+        
+        if (Glob["Mode",number] != 2 | Glob["mRide",array][1,number] == 0) {
+            if (Str:count() > 1) {
+                if (CmdL1 == "idle") {
+                    ("mode")(0)
+                    if (CmdL2) {
+                        Vars = Glob["mIdle",array]
+                        
+                        Lamp = Vars[1,number]
+                        Cam = Vars[2,number]
+                        
+                        Vars[1,number] = (CmdL2 == "lamp") ? bXor(Lamp,1) : Lamp
+                        Vars[2,number] = (CmdL2 == "cam") ? bXor(Cam,1) : Cam
+                    }
+                } elseif (CmdL1 == "term") {
+                    if (CmdL2) {
+                        Ply = findPlayerByName(CmdL2)
+                        if (Ply) {
+                            ("mode")(1)
+                            Vars = Glob["mChase",array]
+                            Vars[1,entity] = Ply
+                            Vars[3,number] = 1
+                        }
+                    }
+                } elseif (CmdL1 == "chase" | CmdL1 == "camchase") {
+                    ("mode")(1)
+                    Vars = Glob["mChase",array]
+                    Ply = owner()
+                    if (CmdL2) {
+                        Ply = findPlayerByName(CmdL2)
+                        if (!Ply) {
+                            Ply = owner()
+                        }
+                    }
+                    Vars[1,entity] = Ply
+                    if (CmdL1 == "camchase") {
+                        Vars[2,number] = 1
+                    }
+                } elseif (CmdL1 == "ride") {
+                    ("mode")(2)
+                }
+            } else {
+                printColor(vec(255,255,255), 
+                    "drone? chase [player] | Chase a player. If [player] is not found or unset it will follow the owner.\n" +
+                    "drone? camchase [player] | Same as above. But with the camera enabled!\n" +
+                    "drone? term [player] | The drone will terminate [player], or owner if omitted.\n" +
+                    "drone? ride | Allows you to enter the drone and control it manually.\n" +
+                    "drone? idle | Pretty much self explainatory. The drone won't do shit!"
+                )
+            }
+        }
+    }
+}
+
+#[HUD HANDLER]#
+hudHandle()
+
+# tick
+if (tickClk()) {
+    # drone logic
+    modeProc()
+    
+    # physics simulation
+    linProc()
+    angProc()
+}

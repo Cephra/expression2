@@ -1,0 +1,163 @@
+@name szDr0n3_vehicle
+@inputs 
+@outputs 
+@persist RPos:vector GEnt:entity
+@trigger 
+
+#[PARENT VARIABLES]#
+Glob = gTable(entity():id():toString())
+DrnPod = Glob["DrnPod",wirelink]
+DrnPodCon = Glob["DrnPodCon",wirelink]
+DrnCam = Glob["DrnCam",wirelink]
+DrnTurret = Glob["DrnTurret",wirelink]
+DrnLamp = Glob["DrnLamp",wirelink]
+
+function doMovement() {
+    local Shift = DrnPodCon["Shift",number]
+    local W = DrnPodCon["W",number]
+    local S = DrnPodCon["S",number]
+    local A = DrnPodCon["A",number]
+    local D = DrnPodCon["D",number]
+    local Up = DrnPodCon["PrevWeapon",number]
+    local Dn = DrnPodCon["NextWeapon",number]
+    
+    local M = (Shift) ? 12 : 3
+    
+    local TPos = Glob["TPos",vector]
+    TPos -= (W) ? entity():up()*M : vec()
+    TPos += (S) ? entity():up()*M : vec()
+    TPos -= (A) ? entity():right()*M : vec()
+    TPos += (D) ? entity():right()*M : vec()
+    TPos += (Up) ? entity():forward()*M : vec()
+    TPos -= (Dn) ? entity():forward()*M : vec()
+    Glob["TPos",vector] = TPos
+}
+
+function doShoot() {
+    local M1 = DrnPodCon["Mouse1",number]
+    local M2 = DrnPodCon["Mouse2",number]
+    
+    DrnTurret["Fire",number] = M1
+    entity():propNotSolid(M2)
+}
+
+function doLight(Vars:array) {
+    local Lght = DrnPodCon["Light",number]
+    
+    local LmpSt = Vars[2,number]
+    if (changed(Lght) & Lght) {
+        Vars[2,number] = bXor(LmpSt,1)
+    }
+    DrnLamp["On",number] = Vars[2,number]
+}
+
+function doTracing(Vars:array) {
+    local EPos = Glob["EPos",vector]
+    rangerFilter(entity())
+    local Trace = rangerOffset(128,EPos,-entity():up())
+    
+    local Ent = Trace:entity()
+    local EId = 0
+    if (changed(Ent)) {
+        if (!Ent) {
+            EId = 0
+        } else {
+            EId = Ent:id()
+        }
+        Vars[3,number] = EId
+    }
+    EId = Vars[3,number]
+    
+    # physgun
+    local R = DrnPodCon["R",number]
+    local CR = changed(R)
+    if (CR) {
+        if(R & EId) {
+            GEnt = Ent
+            RPos = entity():toLocal(Ent:pos())
+        } else {
+            GEnt:propFreeze(0)
+            GEnt = noentity()
+        }
+    }
+    if (GEnt) {
+        GEnt:propFreeze(1)
+        GEnt:setPos(entity():toWorld(RPos))
+        GEnt:setAng((-entity():up()):toAngle())
+    }
+}
+
+function doTeleport() {
+    local EPos = Glob["EPos",vector]
+    
+    local Space = DrnPodCon["Space",number]
+    
+    if (changed(Space) & Space) {
+        local R = rangerOffset(10000,EPos,-entity():up())
+        local TPos = R:position()+vec(0,0,50)
+        
+        Glob["TPos",vector] = TPos
+        entity():setPos(TPos)
+    }
+}
+
+function handleVehicle() {
+    local Vars = Glob["mRide",array]
+        
+    local Active = DrnPodCon["Active",number]
+    
+    if (Vars[1,number] == 0) {
+        local Active_ = changed(Active)
+        if (!Active) {
+            # Do not accept pod input
+            DrnPodCon["Disable",number] = 1
+            DrnPodCon["Lock",number] = 0
+    
+            # Move to access position
+            Glob["TPos",vector] = owner():pos()+(owner():forward()*48):setZ(48)
+            Glob["TAng",angle] = ang()
+    
+            # enable seat and set drone non solid
+            DrnPod:entity():propNotSolid(0)
+            entity():propNotSolid(1)
+        } elseif (Active_ & Active) {
+            # Is the driver the owner tho?
+            Driver = DrnPod:entity():driver()
+            if (Driver == owner()) {
+                # now pod input is safe
+                DrnPodCon["Disable",number] = 0
+                DrnPodCon["Lock",number] = 1
+                
+                # turn on the cam
+                DrnCam["Activated",number] = 1
+                
+                # and set the soidity back to normal
+                DrnPod:entity():propNotSolid(1)
+                entity():propNotSolid(0)
+                
+                # stage one is ready
+                Vars[1,number] = 1
+            } else {
+                DrnPodCon["Terminate",number] = 1
+            }
+        }
+    } elseif (Vars[1,number] == 1) {
+        if (Active) {
+            # set angles accordingly
+            Ang = entity():toLocal(owner():eyeAngles())
+            Glob["TAng",angle] = Ang:rotateAroundAxis(Ang:right(),90)
+            
+            doMovement()
+            doTeleport()
+            doShoot()
+            doLight(Vars)
+            
+            doTracing(Vars)
+        } else {
+            DrnLamp["On",number] = 0
+            DrnTurret["Fire",number] = 0
+            DrnCam["Activated",number] = 0
+            ("mode")(1)
+        }
+    }
+}

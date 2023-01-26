@@ -1,0 +1,69 @@
+@name szDr0n3_base
+@inputs 
+@outputs 
+@persist
+@trigger 
+
+Glob = gTable(entity():id():toString())
+
+Lnks = Glob:toTable():clipToTypeid("xwl")
+
+function setupWirelinks() {
+    entity():setMass(50000)
+    entity():propFreeze(1)
+    entity():setAng(ang())
+    entity():setMaterial("models/shadertest/shader4")
+    
+    local EPos = Glob["EPos",vector]
+    foreach (Ix, Lnk:wirelink=Lnks) {
+        CEnt = Lnk:entity()
+        CEnt:setPos(EPos)
+        CEnt:setAng(ang())
+    
+        CEnt:setColor(vec4(255))
+        
+        CEnt:propFreeze(1)
+        CEnt:propNotSolid(0)
+        CEnt:deparent()
+    }
+}
+
+function finalizeWirelinks() {
+    foreach (Ix, Lnk:wirelink=Lnks) {
+        CEnt = Lnk:entity()
+        CEnt:setColor(vec4())
+        CEnt:parentTo(entity())
+        CEnt:propNotSolid(1)
+    }
+}
+
+function setupModel(Ents:array) {
+    local EPos = entity():massCenter()
+    local IxEnt = 1
+    for (Ix = 0, 360, 30) {
+        Ent = Ents[IxEnt,entity]
+        
+        Pos = EPos+ang(0,Ix,0):forward()*10
+        Ang = (Pos-EPos):toAngle()
+        Ang = Ang:rotateAroundAxis(Ang:right(),90)
+        
+        Ent:setPos(Pos)
+        Ent:setAng(Ang)
+        
+        Ent:propFreeze(1)
+        Ent:propNotSolid(0)
+        Ent:deparent()
+        
+        Ent:setColor(vec(0,127,255))
+        
+        # Next ent
+        IxEnt++
+    }
+}
+function finalizeModel(Ents:array) {
+    foreach (Ix, Ent:entity=Ents) {
+        Ent = Ents[Ix,entity]
+        Ent:parentTo(entity())
+        Ent:propNotSolid(1)
+    }
+}

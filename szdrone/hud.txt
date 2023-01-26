@@ -1,0 +1,118 @@
+@name szDr0n3_HUD
+@inputs 
+@outputs 
+@persist ScrS:vector2 Alph
+@trigger 
+
+#include "screenlib/main"
+
+Glob = gTable(entity():id():toString())
+Screen = Glob["DrnHUD",wirelink]
+ScrS = egpScrSize(owner())
+
+function string getEntInfStr(E:entity) {
+    local Type = E:type()
+    local Str = format("[%s][%s]\n", E:id():toString(), Type)
+    if (Type == "player") {
+        Str += format("%s\n%s\n", E:name(), E:steamID())
+    } elseif (Type == "prop_physics") {
+        local Mdl = E:model():explode("/"):popString()
+        Str += format("mdl[%s]\n", Mdl)
+    }
+    Str += format(
+        "ang%s\npos%s\n",
+        round(E:angles()):toString(),
+        round(E:pos()):toString()
+    )
+    return Str
+}
+
+function number drawInit() {
+    local Crhr = guiByName("crhr")
+    Screen:egpCircle(Crhr,
+        ScrS/2,
+        vec2(6)
+    )
+    Screen:egpColor(Crhr,vec4(255,0,0,127))
+
+    local Ch1 = guiByName("ch1")
+    Screen:egpLine(Ch1,
+        ScrS*vec2(0,0.5),
+        ScrS*vec2(0.45,0.5)
+    )
+    Screen:egpSize(Ch1, 12)
+    Screen:egpColor(Ch1,vec4(0,127,255,127))
+    local Ch2 = guiByName("ch2")
+    Screen:egpLine(Ch2,
+        ScrS*vec2(0.55,0.5),
+        ScrS*vec2(1,0.5)
+    )
+    Screen:egpSize(Ch2, 12)
+    Screen:egpColor(Ch2,vec4(0,127,255,127))
+
+    local Ch3 = guiByName("ch3")
+    Screen:egpLine(Ch3,
+        ScrS*vec2(0.5,0),
+        ScrS*vec2(0.5,0.45)
+    )
+    Screen:egpSize(Ch3, 12)
+    Screen:egpColor(Ch3,vec4(0,127,255,127))
+    local Ch4 = guiByName("ch4")
+    Screen:egpLine(Ch4,
+        ScrS*vec2(0.5,0.55),
+        ScrS*vec2(0.5,1)
+    )
+    Screen:egpSize(Ch4, 12)
+    Screen:egpColor(Ch4,vec4(0,127,255,127))
+
+    local ChInfo = guiCreateTbox("chinfo", 
+        ScrS/2+vec2(100,-120),
+        vec2(280,240),
+        vec4(vec(63),Alph),
+        vec4(-1)
+    )
+    local ChInfoTxt = guiGetTboxTxt("chinfo")
+    Screen:egpAlign(ChInfoTxt, 1, 0)
+    Screen:egpSetText(ChInfoTxt, "--targetinfo--")
+    Screen:egpColor(ChInfoTxt,vec4(vec(255),Alph))
+    
+    return 0
+}
+
+function number updtCrhr() {
+    local ChInfo = guiByName("tbox_chinfo_bgnd")
+    local ChInfoTxt = guiGetTboxTxt("chinfo")
+    
+    local Vars = Glob["mRide",array]
+    local Ent = entity(Vars[3,number])
+    if (Ent) {
+        Screen:egpSetText(ChInfoTxt, getEntInfStr(Ent))
+        # in anim
+        if (Alph < 255) {
+            Alph = Alph + 15
+            Screen:egpColor(ChInfo,vec4(vec(63),Alph))
+            Screen:egpColor(ChInfoTxt,vec4(vec(255),Alph))
+        }
+    } else {
+        # out anim
+        if (Alph > 0) {
+            Alph = Alph - 15
+            Screen:egpColor(ChInfo,vec4(vec(63),Alph))
+            Screen:egpColor(ChInfoTxt,vec4(vec(255),Alph))
+        }
+    }
+    
+    return 6
+}
+
+function initHUD() {
+    guiClear()
+    guiCtrlLoop(1)
+    
+    DTab:pushString("drawInit")
+    DTab:pushString("updtCrhr")
+}
+
+function hudHandle() {
+    guiHandle()
+}
