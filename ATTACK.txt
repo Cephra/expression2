@@ -1,0 +1,30 @@
+@name ATTACK
+@inputs E:entity
+@outputs 
+@persist E:entity O:entity
+@trigger 
+
+if (first()) {
+    O = owner()
+    runOnTick(1)
+}
+
+if (tickClk()) {
+    if (O:pos():distance(E:pos()) > 800) {
+        E:npcGoRun(O:pos())
+    } else {
+        A = O:aimEntity()
+        if (A:isNPC()) {
+            E:npcRelationship(A,"hate",999)
+            
+            if (E:pos():distance(A:pos()) < 100) {
+                E:npcAttack()
+            } else {
+                E:npcShoot()
+            }
+        } else {
+            
+        }
+    }
+    E:npcRelationship(O,"like",999)
+}

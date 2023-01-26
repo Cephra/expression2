@@ -1,0 +1,214 @@
+@name Fly Engine
+@inputs Active # activate
+@inputs W A S D Shift Space Alt # movement
+@inputs HyPos:vector
+@outputs Speed Base:entity TAng:angle # values
+@persist Speed VGoto:vector TPos:vector TAng:angle
+@trigger
+@model models/hunter/blocks/cube1x3x025.mdl
+
+if (first() || duped()) {
+    function void linProc() {
+        # Variables
+        EPos = entity():pos()
+
+        # Calculate the force
+        VGoto = TPos - EPos
+        Vec = (VGoto + $VGoto*5)*entity():mass()*5
+        
+        # Velocity Damp
+        Vec = Vec+(entity():vel()*entity():mass())*-1
+        
+        # Apply the force now!
+        applyForce(Vec)
+    }
+    
+    function void angProc() {
+        # Do the quaternion magic
+        CQuat = quat(entity())
+        TQuat = quat(TAng)
+        Q = TQuat/CQuat
+        Torq = entity():toLocal(rotationVector(Q)+entity():pos())
+        
+        # Apply the torque
+        M = 96
+        N = 8
+        applyTorque((Torq*M - entity():angVelVector()*N)*entity():inertia())
+    }
+    
+    function void conProc() {
+        if (!(W | A | S | D | Space | Shift) && Speed == 0) {
+            TPos = entity():pos()+vec(0,0,0.025)
+        } else {
+            local MaxSpeed = 360
+            local MinSpeed = 40
+            if (Alt && (Speed == 0)) {
+                local StrafSpd = 8
+                local RDir = entity():forward()
+                local UDir = vec(0,0,1)
+                local StrafDir = vec()
+                
+                StrafDir += (W) ? UDir*StrafSpd : vec()
+                StrafDir += (S) ? -UDir*StrafSpd : vec()
+                
+                StrafDir += (A) ? -RDir*StrafSpd : vec()
+                StrafDir += (D) ? RDir*StrafSpd : vec()
+                
+                TVec = StrafDir
+            } else {
+                #Movement
+                if (Space | Shift) {
+                    Speed = (Space) ? clamp(Speed+4,-MinSpeed,MaxSpeed) : Speed
+                    Speed = (Shift) ? clamp(Speed-4,-MinSpeed,MaxSpeed) : Speed
+                } else {
+                    Speed = (Speed > 0) ? clamp(Speed-1,0,MaxSpeed) : Speed
+                    Speed = (Speed < 0) ? clamp(Speed+1,-MinSpeed,0) : Speed
+                }
+                # Rotate
+                if (W | A | S | D) {
+                    local Roll = TAng:roll()
+                    local Yaw = TAng:yaw()
+                    local Pi1 = -85
+                    local Pi2 = 85
+                    
+                    Roll = (W) ? clamp(Roll-1,Pi1,Pi2) : Roll
+                    Roll = (S) ? clamp(Roll+1,Pi1,Pi2) : Roll
+                    
+                    Yaw = (A) ? Yaw+1 : Yaw
+                    Yaw = (D) ? Yaw-1 : Yaw
+                    
+                    TAng = ang(0,Yaw,Roll)
+                }
+                TVec = -entity():right()*Speed
+            }
+            soundPitch(1,100*(1+Speed/MaxSpeed))
+            TPos = entity():pos()+TVec
+        }
+    }
+    
+    function void engineReset() {
+        TAng = round(entity():angles():setPitch(0))
+        Speed = 0
+    }
+    
+    function void activate(On:number) {
+        if (On == 1) {
+            # Set physics
+            setMass(50000)
+            entity():propGravity(0)
+            
+            # Activate & Start sound 
+            entity():soundPlay(1,0,"npc/scanner/scanner_combat_loop1.wav")
+            
+            # Reset
+            engineReset()
+        } else {
+            # Revert physics
+            setMass(256)
+            entity():propGravity(1)
+            
+            # Stop engine sound
+            entity():soundPlay(1,0,"")
+            entity():soundPlay(2,0,"npc/strider/striderx_alert5.wav")
+            
+            # Reset
+            engineReset()
+        }
+    }
+    
+    function void pivot() {
+        local A = entity():angles()
+        local S = 10
+        local M1 = "cube"
+        local M2 = "sphere"
+        
+        #forward
+        local V = vec(1,0,0)*20
+        holoCreate(1, entity():pos())
+        holoAng(1, A)
+        holoScaleUnits(1, S+V)
+        holoModel(1, M1)
+        holoParent(1, entity())
+        holoColor(1, vec(255,0,0)) #red
+        
+        #right
+        local V = vec(0,1,0)*20
+        holoCreate(2, entity():pos())
+        holoAng(2, A)
+        holoScaleUnits(2, S+V)
+        holoModel(2, M1)
+        holoParent(2, entity())
+        holoColor(2, vec(0,255,0)) #red
+        
+        #up
+        local V = vec(0,0,1)*20
+        holoCreate(3, entity():pos())
+        holoAng(3, A)
+        holoScaleUnits(3, S+V)
+        holoModel(3, M1)
+        holoParent(3, entity())
+        holoColor(3, vec(0,0,255)) #red
+        
+        #forward sphere
+        local V = vec(1,0,0)*20
+        holoCreate(4, entity():toWorld(V))
+        holoAng(4, A)
+        holoScaleUnits(4, vec(S))
+        holoModel(4, M2)
+        holoParent(4, entity())
+        holoColor(4, vec(255,0,0)) #red
+        
+        #right sphere
+        local V = vec(0,1,0)*20
+        holoCreate(5, entity():toWorld(V))
+        holoAng(5, A)
+        holoScaleUnits(5, vec(S))
+        holoModel(5, M2)
+        holoParent(5, entity())
+        holoColor(5, vec(0,255,0)) #red
+        
+        #up sphere
+        local V = vec(0,0,1)*20
+        holoCreate(6, entity():toWorld(V))
+        holoAng(6, A)
+        holoScaleUnits(6, vec(S))
+        holoModel(6, M2)
+        holoParent(6, entity())
+        holoColor(6, vec(0,0,255)) #red
+    }
+    
+    function void holotest() {
+        Cons = entity():getConstraints()
+        foreach (Ix,CEnt:entity=Cons) {
+            CEnt:parentTo(entity())
+        }
+    }
+}
+
+if (first() || dupefinished()) {
+    setMass(256)
+    
+    STime = curtime()
+    Base = entity()
+    
+    pivot()
+    #holotest()
+}
+
+if (inputClk()) {
+    if (~Active) {
+        activate(Active)
+        runOnTick(Active)
+    }
+}
+
+if (tickClk()) {
+    # Control processing
+    conProc()
+    
+    # Linear processing
+    linProc()
+    
+    # Angular processing
+    angProc()
+}

@@ -1,0 +1,27 @@
+@name 
+@inputs
+@outputs 
+@persist Orbs:table
+@trigger 
+
+
+
+runOnChat(1)
+
+
+#M=A:mass()
+Q=1000
+
+runOnTick(1)
+
+if (tickClk()) {
+    if (Orbs:count() < 3) {
+        Orbs:pushEntity(propSpawn("models/maxofs2d/hover_rings.mdl", entity():pos(), 0))
+    }
+    for (I = 0, Orbs:count(), 1) {
+        CE = Orbs[I,entity]
+        V=owner():aimPos()-CE:pos()
+        M=CE:mass()
+        CE:applyForce(V*M*Q)
+    }
+}

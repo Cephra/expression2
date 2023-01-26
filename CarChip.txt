@@ -1,0 +1,11 @@
+@name CarChip
+@inputs Valid Invalid
+@outputs Locked
+@persist 
+@trigger 
+
+if (Valid) {
+    Locked = !Locked
+} if (Invalid) {
+    Locked = 1
+}

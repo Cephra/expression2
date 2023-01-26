@@ -1,0 +1,323 @@
+@name Screen Pilot
+@inputs Screen:wirelink
+@inputs Seat:entity Door:entity Base:entity
+@inputs TAng:angle Speed
+@inputs R MWheelUp MWheelDn
+@inputs DrnLnchr:wirelink
+@outputs BtnEngine BtnHdrive BtnTurret BtnDrones BtnAirlock
+@persist Menu0:table CurItm Itms 
+@persist SOff:string
+@trigger 
+
+if (first() || duped()) {
+    #include "screenlib/main"
+    
+    SOff = "offline"
+    
+    # add handleBUTTONTEXT function for each button
+    Menu0 = table(
+        "Engine", 
+        "Hyperdrive", 
+        "Turret",
+        "Drones",
+        "Airlock"
+    )
+    Itms = Menu0:count()
+    CurItm = 1 # Select item1 by default
+    
+    # reset outputs (for duping)
+    BtnEngine = 0
+    BtnHdrive = 0
+    BtnTurret = 0
+    BtnDrones = 0
+    BtnDoor = 0
+    
+    function string getTimeStr() {
+        #[local Date = date()
+        
+        local Hour = Date["hour",number]
+        local Min = Date["min",number]
+        
+        local StrHour = (Hour < 10) ? " "+Hour : Hour:toString()
+        local StrMin = (Min < 10) ? "0"+Min : Min:toString()
+        
+        return format("%s:%s", StrHour, StrMin)]#
+        return "time"
+    }
+    
+    function number drawInit() {
+        local Bgnd = guiByName("bgnd")
+        
+        Screen:egpBox(Bgnd, vec2(0,0), CENTER*2)
+        Screen:egpColor(Bgnd, vec(128,128,255))
+
+        return 0
+    }
+    
+    function number drawMenu0() {
+        for (I = 1, Menu0:count(), 1) {
+            local Btn = guiCreateTbox("item"+I, 
+                vec2(10,10+(I-1)*72), 
+                vec2(256,64),
+                vec(128,128,128),
+                vec(0,0,0)
+            )
+            local Txt = guiGetTboxTxt("item"+I)
+            Screen:egpSetText(Txt, Menu0[I,string])
+            Screen:egpAlign(Txt, 1, 1)
+            Menu0[Itms+I,number] = Btn
+        }
+        
+        return 0
+    }
+    
+    function number drawPMeter() {
+        # create PitchMeterBox here
+        local PMeterBox = guiByName("pmeterbox")
+        local PMeterBoxO = guiByName("pmeterboxo")
+        local PMeterBoxS = vec2(64,330)
+        
+        Screen:egpBox(PMeterBox,
+            vec2(512-240,22),
+            PMeterBoxS
+        )
+        Screen:egpColor(PMeterBox, vec(128,128,128))
+        
+        Screen:egpBoxOutline(PMeterBoxO,
+            -PMeterBoxS/2,
+            PMeterBoxS
+        )
+        Screen:egpColor(PMeterBoxO, vec(0,0,0))
+        Screen:egpSize(PMeterBoxO, 2)
+        Screen:egpParent(PMeterBoxO, PMeterBox)
+        
+        # create actual PMeter in the box
+        local PMeter = guiByName("pmeter")
+        Screen:egpLine(PMeter,
+            vec2(0,-2),
+            vec2(0,2)
+        )
+        Screen:egpParent(PMeter, PMeterBox)
+        Screen:egpSize(PMeter, 32)
+        
+        return 0
+    }
+    
+    function number drawInfos() {
+        local TbInfSpeed = guiCreateTbox("info_drones",
+            vec2(0,512-48),
+            vec2(256,48),
+            vec(128,128,128),
+            vec(0,0,0)
+        )
+        local Txt = guiGetTboxTxt("info_drones")
+        Screen:egpAlign(Txt, 1, 1)
+        
+        local TbInfSpeed = guiCreateTbox("info_turret",
+            vec2(256,512-48),
+            vec2(256,48),
+            vec(128,128,128),
+            vec(0,0,0)
+        )
+        local Txt = guiGetTboxTxt("info_turret")
+        Screen:egpAlign(Txt, 1, 1)
+        
+        local TbInfSpeed = guiCreateTbox("info_speed",
+            vec2(128,512-48-48),
+            vec2(256,48),
+            vec(128,128,128),
+            vec(0,0,0)
+        )
+        local Txt = guiGetTboxTxt("info_speed")
+        Screen:egpAlign(Txt, 1, 1)
+        
+        return 0
+    }
+    
+    function number drawTime() {
+        local TbTime = guiCreateTbox("info_time",
+            vec2(512-72-10,10),
+            vec2(72,38),
+            vec(128,128,128),
+            vec(0,0,0)
+        )
+        local Txt = guiGetTboxTxt("info_time")
+        #local Date = date()
+        
+        Screen:egpAlign(Txt, 1, 1)
+        Screen:egpSize(Txt, 1)
+        
+        Screen:egpSetText(Txt, 
+            getTimeStr()
+        )
+        
+        return 0
+    }
+    
+    function number updtMenu() {
+        for (I = 1, Itms, 1) {
+            Itm = Menu0[Itms+I,number]
+            if (CurItm == I) {
+                Screen:egpColor(Itm, vec(0))
+            } else {
+                Screen:egpColor(Itm, vec(128))
+            }
+        }
+        return 0
+    }
+    
+    #[INFOBOX TEXTS]#
+    function string txtDrones() {
+        if (BtnDrones == 1) {
+            S = format("[%d][%d]",
+                DrnLnchr["Lnchd",number], DrnLnchr["MaxDrns",number]
+            )
+            return S
+        } else {
+            return SOff
+        }
+    }
+    
+    function number updtInfos() {
+        Screen:egpSetText(guiGetTboxTxt("info_drones"),
+            format("Drones: %s", txtDrones())
+        )
+        Screen:egpSetText(guiGetTboxTxt("info_turret"),
+            format("Turret: %s", (BtnTurret) ? "online" : "offline" )
+        )
+        Screen:egpSetText(guiGetTboxTxt("info_speed"),
+            format("Engine: %d", Speed)
+        )
+
+        return 4
+    }
+    
+    function number updtTime() {
+        local Txt = guiGetTboxTxt("info_time")
+        Screen:egpSetText(Txt, getTimeStr())
+        
+        return 50
+    }
+    
+    # Open/Close the backdoor
+    function void toggleAirlock(Open:number) {
+        if (Open == 1) {
+            # open door
+            Door:setAlpha(127)
+        } else {
+            # close door
+            Door:setAlpha(255)
+        }
+        Door:propNotSolid(Open)
+        if (!(first() | dupefinished())) { Base:propFreeze(Open) }
+    }
+    
+    #[ Button handlers ]#
+    
+    function number handleEngine() {
+        BtnEngine = (BtnEngine) ? 0 : 1
+
+        return 0
+    }
+        
+    function number handleHyperdrive() {
+        BtnHdrive = (BtnHdrive) ? 0 : 1
+
+        return 0
+    }
+    
+    function number handleTurret() {
+        BtnTurret = (BtnTurret) ? 0 : 1
+        
+        return 0
+    }
+    
+    function number handleDrones() {
+        BtnDrones = (BtnDrones) ? 0 : 1
+        DrnLnchr["Active",number] = BtnDrones
+        
+        return 0
+    }
+    
+    function number handleAirlock() {
+        BtnAirlock = (BtnAirlock) ? 0 : 1
+        toggleAirlock(BtnAirlock)
+        
+        return 0
+    }
+
+}
+
+if (first() || dupefinished()) {
+    # Start screenlib loop
+    guiClear()
+    guiCtrlLoop(1)
+    
+    # Plug in functions
+    DTab:pushString("drawInit")
+    DTab:pushString("drawMenu0")
+    DTab:pushString("drawPMeter")
+    DTab:pushString("drawInfos")
+    DTab:pushString("drawTime")
+    
+    # Recurring functions
+    DTab:pushString("updtInfos") # update the infos
+    DTab:pushString("updtTime") # update the infos
+    
+    # Redraw Menu
+    DTab:pushString("updtMenu")
+    
+    toggleAirlock(BtnAirlock)
+}
+guiHandle()
+
+if (inputClk()) {
+    if (~R && R) {
+        StrCurItm = Menu0[CurItm,string]
+        ItmOutl = guiByName(format("tbox_item%d_outl", CurItm))
+        
+        # Swap on/off colors
+        Col1 = Screen:egpColor(ItmOutl)
+        Col2 = (Col1 == vec(0)) ? vec(255,0,0) : vec(0,0,0)
+        
+        Screen:egpColor(ItmOutl, Col2)
+        
+        # Exec handle function
+        ("handle"+StrCurItm)()
+    } elseif (~MWheelUp || ~MWheelDn) {
+        if (MWheelDn) {
+            CurItm++
+            CurItm = (CurItm > Itms) ? 1 : CurItm
+        } elseif (MWheelUp) {
+            CurItm--
+            CurItm = (CurItm < 1) ? Itms : CurItm
+        }
+        
+        # Color selected Item
+        if (MWheelUp || MWheelDn) {
+            updtMenu()
+        }
+    } elseif (~TAng) {
+        local PMeter = guiByName("pmeter")
+        if (TAng:roll() < 0) {
+            RollPerc = (TAng:roll()/-90)*100            
+            Screen:egpLine(PMeter,
+                vec2(0,-2),
+                vec2(0,RollPerc)
+            )
+        } elseif (TAng:roll() > 0) {
+            RollPerc = (TAng:roll()/90)*100
+            Screen:egpLine(PMeter,
+                vec2(0,-RollPerc),
+                vec2(0,2)
+            )
+        } else {
+            Screen:egpLine(PMeter,
+                vec2(0,-2),
+                vec2(0,2)
+            )
+        }
+    } else {
+        
+    }
+}

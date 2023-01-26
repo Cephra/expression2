@@ -1,0 +1,45 @@
+@name Shish
+@inputs
+@outputs
+@persist VA:vector Pos:vector Do:number
+@model models/Combine_Helicopter/helicopter_bomb01.mdl
+@trigger
+
+if (first() | duped()) {
+    runOnTick(1)
+    setMass(10000)
+}
+
+if (tickClk()) {
+    P = owner()
+
+    E = entity()
+
+    V1 = (P:pos()+vec(0,0,150))-E:pos()
+
+    V2 = vec(0,0,gravity()*tickInterval())
+
+    if (P:health() > 0) {
+        if (Do != 1 && E:pos():distance(P:pos()) < 150) {
+            Pos = E:pos()
+            Do = 1
+            E:propNotSolid(1)
+        } elseif (Do == 1 && E:pos():distance(P:pos()) > 150) {
+            Do = 0
+            E:propNotSolid(0)
+        }
+        if (Do == 1) {
+            VA = (Pos-E:pos()) + V2
+        } else {
+            if (P:keyUse()) {
+                VA = P:aimPos()-E:pos()
+            } else {
+                VA = V1 + V2
+            }
+        }
+        E:applyForce( (VA + $VA*5) * E:mass() * 5)
+    } else {
+        VA = V2
+        E:applyForce(VA * E:mass())
+    }
+}

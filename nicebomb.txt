@@ -1,0 +1,12 @@
+@name nicebomb
+@inputs E:entity
+@outputs Explode
+@persist 
+@trigger 
+
+runOnTick(1)
+if (!E) {
+    Explode = 1
+} else {
+    Explode = 0
+}
